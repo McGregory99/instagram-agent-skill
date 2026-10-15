@@ -20,6 +20,10 @@ python3 detect.py draft.txt                    # score it, five checks
 python3 detect.py before.txt after.txt         # prove the delta
 ```
 
+For Spanish drafts add `--lang es` to both. It reads `slop.es.json` and keeps
+correct Spanish punctuation (dialogue rayas, attached incisos, « », ¿ ¡); only
+a dash spaced on both sides is treated as the machine splice.
+
 Both read `slop.json`: 154 stock words and phrases with plain-English
 replacements, 18 invisible character classes, 11 typographic substitutions and
 16 structural tells. The last block of each list is Instagram-specific, the

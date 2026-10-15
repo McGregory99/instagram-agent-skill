@@ -115,6 +115,9 @@ account	followers	median	views	hook
 python3 swipe.py captured.tsv --out ~/.claude/instagram/swipe.md
 ```
 
+For Spanish-language accounts add `--lang es`: formulas come from
+`hooks.es.json` and hooks are scored with the Spanish profile.
+
 It computes the outlier multiple, names the hook formula using the same 26
 formulas `/ig-reel` writes from, scores each hook with `hookscore.py`, and
 prints what separates the top third from the bottom third.

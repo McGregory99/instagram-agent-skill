@@ -17,6 +17,10 @@ python3 caption.py caption.txt
 python3 caption.py caption.txt --keywords "client proposals,agency pricing"
 ```
 
+For a Spanish caption add `--lang es`: it recognises Spanish asks ("Comenta
+GUIA", "guárdalo", "link en la bio"), Spanish filler tags (#parati) and
+accented hashtags.
+
 It prints the caption the way the feed prints it: the first 125 characters in a
 box, everything else behind the tap. Read that box before you read anything
 else you wrote.

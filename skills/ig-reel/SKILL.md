@@ -22,6 +22,11 @@ python3 hookscore.py --hook "one line"      # score a single one
 python3 beats.py script.txt --target 30     # timed beat sheet before you shoot
 ```
 
+If the user writes in Spanish or `voice.md` says Spanish, add `--lang es` to
+both tools and read `hooks.es.json` instead of `hooks.json` (same 26 ids). In
+Spanish, `beats.py` times by syllables; if `voice.md` gives a rate in
+syllables per second, pass it as `--sps`.
+
 ## Before you write
 
 1. Read `~/.claude/instagram/voice.md` if it exists. That is the user's voice

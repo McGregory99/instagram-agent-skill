@@ -219,6 +219,52 @@ SWIPE FILE  ·  4 reels  ·  4 accounts  ·  baseline: account median
            "in this video I am going to show you my morning routine"
 ```
 
+## Spanish: `--lang es`
+
+Every script takes `--lang es` for Spanish from Spain (tú-form). Leave it off
+and nothing changes: the English output is byte-identical, and
+`python3 -m unittest discover tests` pins it.
+
+```bash
+python3 hookscore.py ganchos.txt --lang es
+python3 beats.py guion.txt --lang es --target 30
+python3 humanize.py borrador.txt --lang es --report
+python3 detect.py borrador.txt --lang es
+python3 caption.py pie.txt --lang es
+python3 swipe.py capturados.tsv --lang es
+```
+
+It is not a translation of the word lists. It is a translation of what they
+are for, and Spanish breaks several things the English versions assume:
+
+- **The raya is correct Spanish.** Dialogue (`—¿Vienes? —preguntó.`) and
+  incisos attached to their words (`texto ―inciso― texto`) are RAE punctuation,
+  and so are `« »` and the opening `¿ ¡`. The humanizer leaves all of them alone.
+  What it still removes is the dash spaced on both sides and used as a splice,
+  which is the actual tell: in the one study that measured it, human Spanish
+  texts used 0.0 em dashes per 1,000 tokens against 2.9 for GPT-4o writing in
+  Spanish and 25.3 for GPT-4o translating into it (Resende & Castilho, StyGenAI
+  2026, 12 texts, one model snapshot).
+- **Beats are timed in syllables, not words.** Spanish is spoken faster per
+  syllable than English, 7.82 against 6.19 syllables a second read aloud
+  (Pellegrino et al. 2011), but carries less per syllable, and words like
+  "implementación" are long. `beats.py --lang es` counts syllables from the
+  spelling, reads "18.000 €" as "dieciocho mil euros", and defaults to 5.2
+  syllables a second, which is the English default scaled by that ratio. Time
+  yourself and set `--sps`.
+- **Spanish drops the subject.** "Si programas con Python" talks to the viewer
+  without a "tú", so ADDRESS reads second-person verbs, and the detector's voice
+  check stops counting English contractions and lowers its pronoun target.
+- **`hooks.es.json` has the same 26 ids** as `hooks.json`, so `/ig-audit` and
+  `/ig-plan` references hold. The examples and the match patterns are
+  rewritten for Spanish; every example classifies to its own formula.
+
+The Spanish word lists are heuristics. No published list of Spanish AI
+vocabulary survived checking (the best Spanish AI-text detector in IberLEF
+2023 AuTexTification scored 70.77 Macro-F1, barely above its baseline), and
+no study of Spanish hook performance did either. The lists are a reasonable
+starting point. They are not evidence. Report messages stay in English.
+
 ## What I actually measured, which is the part worth reading
 
 I did not want to publish a hook scorer on the claim that it feels right, so I
@@ -324,6 +370,12 @@ skills/ig-human/detect.py          the five-check panel
 skills/ig-viral/swipe.py           outlier ranking and formula classification
 skills/ig-profile/rubric.json      the 100-point profile score
 templates/voice.md                 your voice profile. Fill this in first.
+
+skills/ig-reel/hooks.es.json       the 26 formulas in Spanish, same ids   (--lang es)
+skills/ig-reel/lang/es.json        Spanish word lists for hookscore.py
+skills/ig-reel/syllables.py        Spanish syllable counter for beats.py
+skills/ig-human/slop.es.json       the Spanish lexicon
+tests/test_lang.py                 pins English output, covers --lang es
 ```
 
 ## Credit
