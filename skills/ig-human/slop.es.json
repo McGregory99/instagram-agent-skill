@@ -328,27 +328,27 @@
     },
     {
       "find": "fundamental",
-      "replace": "clave",
+      "replace": "básico",
       "family": "adjectives"
     },
     {
       "find": "fundamentales",
-      "replace": "clave",
+      "replace": "básicos",
       "family": "adjectives"
     },
     {
       "find": "crucial",
-      "replace": "clave",
+      "replace": "importante",
       "family": "adjectives"
     },
     {
       "find": "cruciales",
-      "replace": "clave",
+      "replace": "importantes",
       "family": "adjectives"
     },
     {
       "find": "vital",
-      "replace": "clave",
+      "replace": "importante",
       "family": "adjectives"
     },
     {
@@ -495,11 +495,6 @@
       "find": "sin fisuras",
       "replace": "",
       "family": "adjectives"
-    },
-    {
-      "find": "panorama",
-      "replace": "terreno",
-      "family": "nouns"
     },
     {
       "find": "ecosistema",
@@ -925,12 +920,12 @@
     },
     {
       "find": "nadie está hablando de esto",
-      "replace": "pocos hacen esto",
+      "replace": "pocos lo cuentan",
       "family": "openers"
     },
     {
       "find": "nadie habla de esto",
-      "replace": "pocos hacen esto",
+      "replace": "pocos lo cuentan",
       "family": "openers"
     },
     {
@@ -1097,6 +1092,86 @@
       "find": "vencer al algoritmo",
       "replace": "conseguir alcance",
       "family": "nouns"
+    },
+    {
+      "find": "sin lugar a dudas",
+      "replace": "",
+      "family": "connectives"
+    },
+    {
+      "find": "sin duda alguna",
+      "replace": "",
+      "family": "connectives"
+    },
+    {
+      "find": "juega un papel crucial",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "juega un papel fundamental",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "juega un papel clave",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "desempeña un papel crucial",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "desempeña un papel fundamental",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "desempeña un papel clave",
+      "replace": "importa mucho",
+      "family": "verbs"
+    },
+    {
+      "find": "un mundo de posibilidades",
+      "replace": "muchas opciones",
+      "family": "nouns"
+    },
+    {
+      "find": "infinitas posibilidades",
+      "replace": "muchas opciones",
+      "family": "nouns"
+    },
+    {
+      "find": "en constante evolución",
+      "replace": "que cambia rápido",
+      "family": "adjectives"
+    },
+    {
+      "find": "en constante cambio",
+      "replace": "que cambia rápido",
+      "family": "adjectives"
+    },
+    {
+      "find": "da rienda suelta a",
+      "replace": "suelta",
+      "family": "verbs"
+    },
+    {
+      "find": "dar rienda suelta a",
+      "replace": "soltar",
+      "family": "verbs"
+    },
+    {
+      "find": "en el ámbito de",
+      "replace": "en",
+      "family": "connectives"
+    },
+    {
+      "find": "en pocas palabras",
+      "replace": "",
+      "family": "connectives"
     }
   ],
   "structures": [
