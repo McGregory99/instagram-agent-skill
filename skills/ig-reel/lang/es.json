@@ -1,0 +1,67 @@
+{
+  "lang": "es",
+  "note": "Spanish (Spain, tu-form) profile for hookscore.py --lang es. Same five checks as English, with Spanish vocabulary. The word lists are heuristics written for spoken castellano, not a trained model: no published study of Spanish hook performance survived verification, and the only sourced rule is that greeting and filler openers ('Hola chicos', 'Bueno...') are weak. Spanish drops subject pronouns, so ADDRESS also looks at second-person verb forms ('Si programas...'), not only at 'tu' and 'te'. Number words are kept out of any stopword list on purpose: 'dos', 'tres' and 'mil' are exactly the concrete markers SPECIFICITY looks for.",
+  "word_re": "[^\\W_][\\w$%€'’-]*|[$€]\\s?\\d[\\d.]*",
+  "thousands_sep": ".",
+  "number_re": "\\d[\\d.]*(?:,\\d+)?\\s?€|[$€]\\s?\\d[\\d.]*(?:,\\d+)?|\\b\\d[\\d.]*(?:,\\d+)?\\s?(?:%|k\\b|x\\b|h\\b|horas?\\b|min\\b|minutos?\\b|d[ií]as?\\b|semanas?\\b|mes(?:es)?\\b|años?\\b)?",
+  "proper_re": "(?<!^)(?<![¿¡])\\b[A-ZÁÉÍÓÚÑ][a-záéíóúñü]{2,}\\b",
+  "price_re": "[$€]\\s?\\d|\\d\\s?€|\\d\\s?euros?\\b",
+  "syllables_per_second": 5.2,
+  "spoken_numbers": [
+    "cero", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
+    "diez", "once", "doce", "quince", "veinte", "treinta", "cuarenta", "cincuenta",
+    "sesenta", "setenta", "ochenta", "noventa", "cien", "cientos", "mil", "miles",
+    "millón", "millones", "docena", "mitad", "doble", "triple", "medio"
+  ],
+  "money_words": [
+    "euros", "euro", "pavos", "pasta", "dinero", "céntimos", "porcentaje",
+    "millonario", "facturación", "facturar", "facturo", "facturé", "beneficio",
+    "beneficios", "ingresos", "sueldo", "salario", "nómina", "alquiler", "cobrar",
+    "cobré", "cobro", "cobras", "precio", "presupuesto"
+  ],
+  "stakes": [
+    "deja", "dejé", "nunca", "jamás", "nadie", "nada", "no", "ni",
+    "error", "errores", "mal", "equivocado", "equivocas", "perdí", "pierdes",
+    "perder", "perdiendo", "cuesta", "costó", "coste", "arruiné", "roto", "rompí",
+    "fracaso", "fracasé", "fallé", "fallo", "despidieron", "despedido", "dimití",
+    "borré", "borra", "borrar", "eliminé", "sustituye", "reemplaza", "sustituyó",
+    "gratis", "pagué", "pagar", "pagan", "pagaron", "cobré", "contraté", "ahorré",
+    "ahorra", "primer", "primera", "prohibido", "ilegal", "peor", "odio", "odiaba",
+    "tiras", "tiré", "desperdicias", "estafa", "mentira", "mentí", "verdad",
+    "secreto", "oculto", "robé", "robaron", "antes", "hasta", "sino", "excepto",
+    "salvo", "problema", "riesgo", "peligro", "cuidado", "ojo", "arrepiento",
+    "ojalá", "deberías", "debería", "todavía", "aún", "ya", "solo", "sólo", "sin",
+    "contra", "vs", "realmente", "jodido", "pierde", "suspendí", "rechazaron"
+  ],
+  "weak_openers": [
+    "hola", "buenas", "bueno", "vale", "venga", "ok", "okey", "oye", "mira",
+    "chicos", "chicas", "gente", "amigos", "bienvenidos", "bienvenidas", "hoy",
+    "básicamente", "sinceramente", "simplemente", "pues", "entonces", "es que",
+    "quería", "quiero", "vamos a", "voy a", "os traigo", "te traigo",
+    "en este", "en el vídeo", "en el video", "uno de", "una de", "has visto",
+    "alguna vez", "sabías que", "esto es", "este es", "esta es", "hay", "como",
+    "tú sabes", "ya sabes", "lo que", "la cosa"
+  ],
+  "imperatives": [
+    "deja", "copia", "roba", "borra", "prueba", "lee", "guarda", "usa",
+    "construye", "haz", "crea", "escribe", "manda", "envía", "coge", "empieza",
+    "nunca", "siempre", "no", "pon", "ejecuta", "revisa", "aprende", "olvida",
+    "olvídate", "evita", "despliega", "publica", "cobra", "apunta", "fíjate"
+  ],
+  "dealbreakers": [
+    {
+      "regex": "(?i)^\\s*(?:(?:para|deja) de (?:hacer scroll|deslizar|bajar)|no (?:hagas|sigas) (?:scroll|bajando|deslizando))",
+      "message": "Opens with \"stop scrolling\" (\"deja de hacer scroll\"). Asking for attention proves you have not earned it."
+    },
+    {
+      "regex": "(?i)\\b(?:en (?:este|el) (?:v[ií]deo|reel)(?: de hoy)?|te voy a (?:enseñar|mostrar|contar|explicar)|(?:hoy )?(?:te|os) traigo|hoy (?:te|os) (?:enseño|cuento|explico)|voy a hablar(?:te|os)? de)\\b",
+      "message": "Video preamble (\"en este vídeo te voy a enseñar\"). Delete it and open on the payoff."
+    },
+    {
+      "regex": "(?i)^\\s*¡?\\s*(?:hola|buenas|qu[eé] tal|hey|bienvenid[oa]s?|qu[eé] pasa)\\b",
+      "message": "Greeting (\"Hola chicos\"). Nobody came to the feed to be greeted."
+    }
+  ],
+  "viewer_re": "(?i)\\b(?:t[uú]|te|ti|tus|contigo|vosotr[oa]s|os|vuestr[oa]s?)\\b|\\bsi\\s+(?!no\\b)[a-záéíóúñ]+(?:as|es)\\b|\\b(?:sabes|quieres|tienes|puedes|haces|programas|usas|necesitas|buscas|eres|estás|vas|sigues|crees|piensas|cobras|ganas|pierdes|cometes|llevas|trabajas|aprendes|construyes|vendes)\\b",
+  "first_person_re": "(?i)\\b(?:yo|me|mi|mis|conmigo|nosotr[oa]s|nos|nuestr[oa]s?)\\b|\\b(?!(?:así|aquí|allí|ahí|café|bebé|jamás)\\b)[a-záéíóúñ]{2,}[éí]\\b"
+}

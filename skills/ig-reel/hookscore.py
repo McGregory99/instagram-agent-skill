@@ -28,13 +28,17 @@ Usage
   python3 hookscore.py --hook "I lost $18,000 on one missing contract."
   pbpaste | python3 hookscore.py -
   python3 hookscore.py hooks.txt --json
+  python3 hookscore.py hooks.txt --lang es    # Spanish hooks, lists in lang/es.json
 """
 
 import argparse
 import json
+import os
 import re
 import statistics
 import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 WORD_RE = re.compile(r"[A-Za-z0-9$%'’-]+")
 NUMBER_RE = re.compile(
@@ -109,20 +113,76 @@ DEALBREAKERS = [
 ]
 
 
+# Everything a check needs to know about the language it is reading. English
+# is built from the constants above, so leaving --lang off changes nothing.
+EN = {
+    "lang": "en",
+    "word_re": WORD_RE, "number_re": NUMBER_RE, "proper_re": PROPER_RE,
+    "price_re": re.compile(r"\$\s?\d"), "thousands_sep": ",",
+    "spoken_numbers": SPOKEN_NUMBERS, "money_words": MONEY_WORDS,
+    "stakes": STAKES, "weak_openers": WEAK_OPENERS, "imperatives": IMPERATIVES,
+    "dealbreakers": DEALBREAKERS,
+    "viewer_re": re.compile(r"\b(you|your|you're|youre|yourself)\b"),
+    "first_person_re": re.compile(r"\b(i|my|me|we|our)\b"),
+}
+
+
+def load_profile(lang="en"):
+    """English, or a profile from lang/<code>.json next to this script."""
+    if lang == "en":
+        return EN
+    with open(os.path.join(HERE, "lang", f"{lang}.json"), encoding="utf-8") as fh:
+        d = json.load(fh)
+    return {
+        "lang": lang,
+        "word_re": re.compile(d["word_re"]),
+        "number_re": re.compile(d["number_re"], re.IGNORECASE),
+        "proper_re": re.compile(d["proper_re"]),
+        "price_re": re.compile(d["price_re"], re.IGNORECASE),
+        "thousands_sep": d["thousands_sep"],
+        "syllables_per_second": d.get("syllables_per_second"),
+        "spoken_numbers": set(d["spoken_numbers"]),
+        "money_words": set(d["money_words"]),
+        "stakes": set(d["stakes"]),
+        "weak_openers": d["weak_openers"],
+        "imperatives": set(d["imperatives"]),
+        # Hashtags and emoji read the same in every language.
+        "dealbreakers": [(re.compile(x["regex"]), x["message"]) for x in d["dealbreakers"]]
+                        + DEALBREAKERS[-2:],
+        "viewer_re": re.compile(d["viewer_re"]),
+        "first_person_re": re.compile(d["first_person_re"]),
+    }
+
+
 def clamp(n):
     return max(0.0, min(100.0, n))
 
 
-def words(text):
+def words(text, p=EN):
     # "$18,000" is one word when it is spoken, so it is one word here too.
-    return WORD_RE.findall(re.sub(r"(?<=\d),(?=\d)", "", text))
+    # Spanish writes the same figure "18.000", so the separator is per language.
+    sep = re.escape(p["thousands_sep"])
+    return p["word_re"].findall(re.sub(r"(?<=\d)" + sep + r"(?=\d)", "", text))
 
 
-def check_length(text):
+def spoken_seconds(text, n_words, p):
+    if p.get("syllables_per_second"):
+        # Spanish words run long, so the clock is syllables, not words.
+        # See syllables.py for why.
+        from syllables import count
+        return count(text) / p["syllables_per_second"]
+    return n_words / 2.75                # ~165 words per minute, spoken
+
+
+def _low(tokens):
+    return [w.lower().strip("'’") for w in tokens]
+
+
+def check_length(text, p=EN):
     """A hook has to land before the thumb moves. Roughly two seconds."""
-    w = words(text)
+    w = words(text, p)
     n = len(w)
-    secs = n / 2.75                      # ~165 words per minute, spoken
+    secs = spoken_seconds(text, n, p)
     chars = len(text.strip())
     if 5 <= n <= 12:
         score = 100.0
@@ -135,12 +195,12 @@ def check_length(text):
     return clamp(score), f"{n} words, {chars} chars, ~{secs:.1f}s spoken (want 5-12 words)"
 
 
-def check_specificity(text):
+def check_specificity(text, p=EN):
     """One concrete thing beats three abstract ones."""
-    nums = [n.strip() for n in NUMBER_RE.findall(text) if n.strip()]
-    propers = set(PROPER_RE.findall(text))
-    low = [w.lower().strip("'’") for w in words(text)]
-    spoken = [w for w in low if w in SPOKEN_NUMBERS or w in MONEY_WORDS]
+    nums = [n.strip() for n in p["number_re"].findall(text) if n.strip()]
+    propers = set(p["proper_re"].findall(text))
+    low = _low(words(text, p))
+    spoken = [w for w in low if w in p["spoken_numbers"] or w in p["money_words"]]
     hits = len(nums) + len(propers) + len(spoken)
     score = 15.0 if hits == 0 else clamp(45 + hits * 30)
     found = ", ".join(nums[:2] + sorted(propers)[:2] + spoken[:2])
@@ -148,12 +208,12 @@ def check_specificity(text):
                    " - no number, no name, nothing checkable"))
 
 
-def check_stakes(text):
+def check_stakes(text, p=EN):
     """Tension, cost, negation. Something the viewer might lose."""
-    w = [x.lower().strip("'’") for x in words(text)]
-    hits = [x for x in w if x in STAKES]
+    w = _low(words(text, p))
+    hits = [x for x in w if x in p["stakes"]]
     markers = sorted(set(hits))
-    if re.search(r"\$\s?\d", text):
+    if p["price_re"].search(text):
         markers.append("a price")
     n = len(markers)
     score = {0: 20.0, 1: 70.0}.get(n, 100.0)
@@ -162,23 +222,23 @@ def check_stakes(text):
     return clamp(score), detail
 
 
-def check_frontload(text):
+def check_frontload(text, p=EN):
     """The interesting word cannot be in position nine."""
-    w = words(text)
+    w = words(text, p)
     if not w:
         return 0.0, "empty"
-    low = [x.lower().strip("'’") for x in w]
+    low = _low(w)
     opener = " ".join(low[:2])
     penalty = 0
     hit_opener = None
-    for weak in WEAK_OPENERS:
+    for weak in p["weak_openers"]:
         if opener.startswith(weak) or low[0] == weak:
             penalty, hit_opener = 30, weak
             break
     payload = None
     for i, token in enumerate(low):
-        if (token in STAKES or token in SPOKEN_NUMBERS or token in MONEY_WORDS
-                or NUMBER_RE.match(w[i]) or (i and PROPER_RE.match(w[i]))):
+        if (token in p["stakes"] or token in p["spoken_numbers"] or token in p["money_words"]
+                or p["number_re"].match(w[i]) or (i and p["proper_re"].match(w[i]))):
             payload = i
             break
     if payload is None:
@@ -197,15 +257,15 @@ def check_frontload(text):
     return clamp(base - penalty), detail
 
 
-def check_address(text):
+def check_address(text, p=EN):
     """Aimed at one viewer, or floating in the air."""
     low = text.lower()
-    w = [x.lower().strip("'’") for x in words(text)]
-    if re.search(r"\b(you|your|you're|youre|yourself)\b", low):
+    w = _low(words(text, p))
+    if p["viewer_re"].search(low):
         return 100.0, "speaks to the viewer"
-    if w and w[0] in IMPERATIVES:
+    if w and w[0] in p["imperatives"]:
         return 90.0, f"imperative opener (\"{w[0]}\")"
-    if re.search(r"\b(i|my|me|we|our)\b", low):
+    if p["first_person_re"].search(low):
         return 70.0, "first person, no viewer named"
     return 35.0, "third person, nobody in the room"
 
@@ -213,15 +273,16 @@ def check_address(text):
 CHECKS = ["LENGTH", "SPECIFICITY", "STAKES", "FRONTLOAD", "ADDRESS"]
 
 
-def run(text):
+def run(text, lang="en"):
+    p = load_profile(lang) if isinstance(lang, str) else lang
     results = {
-        "LENGTH": check_length(text),
-        "SPECIFICITY": check_specificity(text),
-        "STAKES": check_stakes(text),
-        "FRONTLOAD": check_frontload(text),
-        "ADDRESS": check_address(text),
+        "LENGTH": check_length(text, p),
+        "SPECIFICITY": check_specificity(text, p),
+        "STAKES": check_stakes(text, p),
+        "FRONTLOAD": check_frontload(text, p),
+        "ADDRESS": check_address(text, p),
     }
-    flags = [msg for pattern, msg in DEALBREAKERS if pattern.search(text)]
+    flags = [msg for pattern, msg in p["dealbreakers"] if pattern.search(text)]
     scores = [results[c][0] for c in CHECKS]
     # The weakest property caps the hook, same logic as detect.py: one bad
     # property is enough for the thumb to keep moving.
@@ -273,7 +334,10 @@ def main():
     ap.add_argument("input", nargs="?", default="-", help="file with one hook per line, or -")
     ap.add_argument("--hook", help="score a single hook given on the command line")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--lang", default="en", choices=["en", "es"],
+                    help="language of the hooks (default en; es reads lang/es.json)")
     args = ap.parse_args()
+    profile = load_profile(args.lang)
 
     if args.hook:
         lines = [args.hook]
@@ -286,7 +350,7 @@ def main():
 
     payload = []
     for line in lines:
-        results, overall, verdict, flags = run(line)
+        results, overall, verdict, flags = run(line, profile)
         payload.append({
             "hook": line,
             "checks": {k: {"score": round(v[0], 1), "detail": v[1]} for k, v in results.items()},
@@ -301,7 +365,7 @@ def main():
         return
 
     if len(payload) == 1:
-        results, overall, verdict, flags = run(lines[0])
+        results, overall, verdict, flags = run(lines[0], profile)
         render_one(lines[0], results, overall, verdict, flags)
     else:
         render_table(sorted(payload, key=lambda r: -r["score"]))
