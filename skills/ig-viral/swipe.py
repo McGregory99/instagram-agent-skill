@@ -23,24 +23,41 @@ Usage
   python3 swipe.py captured.tsv
   python3 swipe.py captured.tsv --out ~/.claude/instagram/swipe.md
   python3 swipe.py captured.tsv --json
+  python3 swipe.py capturados.tsv --lang es   # Spanish hooks, names from hooks.es.json
 """
 
 import argparse
+import inspect
 import json
 import os
 import re
 import statistics
 import sys
+import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HOOKS = os.path.join(HERE, "..", "ig-reel", "hooks.json")
+HOOKS_BY_LANG = {
+    "en": os.path.join(HERE, "..", "ig-reel", "hooks.json"),
+    "es": os.path.join(HERE, "..", "ig-reel", "hooks.es.json"),
+}
+HOOKS = HOOKS_BY_LANG["en"]
 WORD_RE = re.compile(r"[A-Za-z0-9$%'’-]+")
+# Spanish: accented letters and ñ are word characters, and "18.000 €" is one figure.
+WORD_RE_BY_LANG = {
+    "en": WORD_RE,
+    "es": re.compile(r"\d+(?:[.,]\d+)*(?:\s?[%€])?|[^\W\d_][\w'’-]*|[$€%]"),
+}
 
 try:                                              # optional: score the hooks too
     sys.path.insert(0, os.path.join(HERE, "..", "ig-reel"))
     from hookscore import run as score_hook       # noqa: E402
 except Exception:                                 # ig-viral copied on its own
     score_hook = None
+try:                                              # older hookscore.py has no lang
+    SCORE_TAKES_LANG = score_hook is not None and \
+        "lang" in inspect.signature(score_hook).parameters
+except (TypeError, ValueError):
+    SCORE_TAKES_LANG = False
 
 
 def load_formulas(path):
@@ -91,16 +108,27 @@ def read_rows(path):
     return rows
 
 
-def analyse(rows, formulas):
+def can_score(lang="en"):
+    """English always scores; other languages need a hookscore.py that takes lang."""
+    return score_hook is not None and (lang == "en" or SCORE_TAKES_LANG)
+
+
+def analyse(rows, formulas, lang="en"):
     used_median = any(r.get("median") for r in rows)
+    word_re = WORD_RE_BY_LANG[lang]
     for r in rows:
+        if lang != "en":                          # é typed as e + combining accent
+            r["hook"] = unicodedata.normalize("NFC", r["hook"])
         base = r.get("median") or r.get("followers") or 0
         r["baseline"] = base
         r["outlier"] = round(r["views"] / base, 2) if base else None
         r["formula_id"], r["formula"] = classify(r["hook"], formulas)
-        r["words"] = len(WORD_RE.findall(r["hook"]))
-        if score_hook:
-            _, overall, verdict, _ = score_hook(r["hook"])
+        r["words"] = len(word_re.findall(r["hook"]))
+        if can_score(lang):
+            if lang == "en":
+                _, overall, verdict, _ = score_hook(r["hook"])
+            else:
+                _, overall, verdict, _ = score_hook(r["hook"], lang=lang)
             r["hook_score"], r["hook_verdict"] = round(overall, 1), verdict
         else:
             r["hook_score"], r["hook_verdict"] = None, None
@@ -174,7 +202,10 @@ def to_markdown(a):
 def main():
     ap = argparse.ArgumentParser(description="Rank collected reels by outlier multiple.")
     ap.add_argument("input", nargs="?", default="-", help="TSV file, or - for stdin")
-    ap.add_argument("--hooks", default=HOOKS, help="path to ig-reel/hooks.json")
+    ap.add_argument("--hooks", default=None,
+                    help="path to ig-reel/hooks.json (default: hooks.es.json with --lang es)")
+    ap.add_argument("--lang", default="en", choices=["en", "es"],
+                    help="language of the hooks (default en; es names them from hooks.es.json)")
     ap.add_argument("--out", help="also write the swipe file as markdown here")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -184,12 +215,15 @@ def main():
         print("no usable rows. Need a tab-separated file with at least views and hook.",
               file=sys.stderr)
         sys.exit(2)
-    formulas = load_formulas(args.hooks)
-    a = analyse(rows, formulas)
+    formulas = load_formulas(args.hooks or HOOKS_BY_LANG[args.lang])
+    a = analyse(rows, formulas, args.lang)
     if not formulas:
         print("note: hooks.json not found, formulas not named. Pass --hooks.", file=sys.stderr)
     if score_hook is None:
         print("note: hookscore.py not importable, hook scores skipped.", file=sys.stderr)
+    elif not can_score(args.lang):
+        print(f"note: hookscore.py has no --lang, {args.lang} hook scores skipped.",
+              file=sys.stderr)
 
     if args.json:
         print(json.dumps(a, indent=2, ensure_ascii=False))
