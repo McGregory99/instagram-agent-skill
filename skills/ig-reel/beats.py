@@ -13,12 +13,20 @@ are close enough to plan an edit and not a substitute for recording it. Set
 your own rate with --wpm once you have timed yourself reading a script out
 loud: most people land between 150 and 200, and the default here is 165.
 
+With --lang es the clock is syllables, not words, because Spanish words run
+long and Spanish is spoken faster per syllable than English (7.82 vs 6.19
+syllables a second read aloud, Pellegrino et al. 2011). The default of 5.2
+syllables a second is the English default scaled by that same ratio. Time
+yourself and set --sps: syllables in a script you read, divided by seconds.
+
 Usage
   python3 beats.py script.txt
   python3 beats.py script.txt --target 30
   python3 beats.py script.txt --wpm 185 --target 45
   pbpaste | python3 beats.py -
   python3 beats.py script.txt --json
+  python3 beats.py guion.txt --lang es --target 30
+  python3 beats.py guion.txt --lang es --sps 5.8
 """
 
 import argparse
@@ -41,15 +49,44 @@ HOOK_WINDOW = 3.0        # seconds. Past this, the thumb has already decided.
 MAX_BEAT = 4.0           # seconds on one idea with no change on screen.
 ABSTRACT_RUN = 3         # beats in a row with nothing checkable in them.
 
+# Spanish. Number words ("dos", "mil") are deliberately not stopwords: a hook
+# and a last line that share "mil" do loop.
+ES = {
+    "word_re": re.compile(r"[^\W_][\w$%€'’-]*|[$€]\s?\d[\d.]*"),
+    "concrete_re": re.compile(r"[$€]\s?\d|\d\s?€|\b\d[\d,.]*\b"
+                              r"|(?<!^)(?<![¿¡])\b[A-ZÁÉÍÓÚÑ][a-záéíóúñü]{2,}\b", re.MULTILINE),
+    "stopwords": {
+        "el", "la", "los", "las", "un", "una", "unos", "unas", "lo", "al", "del",
+        "y", "e", "o", "u", "pero", "si", "de", "a", "en", "con", "por", "para",
+        "sin", "sobre", "que", "qué", "este", "esta", "esto", "ese", "esa", "eso",
+        "es", "son", "era", "fue", "ser", "está", "están", "estar", "hay",
+        "tú", "tu", "tus", "te", "ti", "yo", "mi", "mis", "me", "nos", "os",
+        "se", "su", "sus", "le", "les", "ya", "no", "ni", "muy", "más", "como",
+        "cuando", "donde", "también", "solo", "todo", "todos", "toda", "todas",
+        "hacer", "haz", "has", "he", "ha", "tiene", "tienes", "puedes", "vas",
+        "voy", "va", "así", "pues", "porque",
+    },
+}
 
-def words(text):
+
+def words(text, lang="en"):
     # "$18,000" is one word when it is spoken, so it is one word here too.
+    if lang == "es":
+        return ES["word_re"].findall(re.sub(r"(?<=\d)\.(?=\d)", "", text))
     return WORD_RE.findall(re.sub(r"(?<=\d),(?=\d)", "", text))
 
 
-def pretty(token):
+def clock(lang, wpm, sps):
+    """(units of a line, units per second, unit name) for the language."""
+    if lang == "es":
+        from syllables import count
+        return count, sps, "syllables"
+    return (lambda t: len(words(t))), wpm / 60.0, "words"
+
+
+def pretty(token, sep=","):
     """Put the thousands separator back for display."""
-    return re.sub(r"(\d)(?=(\d{3})+$)", r"\1,", token)
+    return re.sub(r"(\d)(?=(\d{3})+$)", r"\1" + sep, token)
 
 
 def tc(seconds):
@@ -57,13 +94,14 @@ def tc(seconds):
     return f"{int(m)}:{s:04.1f}"
 
 
-def split_beats(raw, wps):
+def split_beats(raw, wps, units=None):
     """One line is one beat, unless a line is too long to be one."""
+    units = units or (lambda t: len(words(t)))
     beats = []
     for line in [l.strip() for l in raw.splitlines()]:
         if not line:
             continue
-        if len(words(line)) / wps <= MAX_BEAT * 1.5:
+        if units(line) / wps <= MAX_BEAT * 1.5:
             beats.append(line)
             continue
         # Long paragraph: break it at sentence ends so the timings mean
@@ -72,7 +110,7 @@ def split_beats(raw, wps):
         buf = ""
         for part in parts:
             candidate = (buf + " " + part).strip()
-            if buf and len(words(candidate)) / wps > MAX_BEAT:
+            if buf and units(candidate) / wps > MAX_BEAT:
                 beats.append(buf)
                 buf = part
             else:
@@ -82,28 +120,32 @@ def split_beats(raw, wps):
     return beats
 
 
-def analyse(raw, wpm=165, target=None):
-    wps = wpm / 60.0
-    beats = split_beats(raw, wps)
+def analyse(raw, wpm=165, target=None, lang="en", sps=5.2):
+    units, wps, unit = clock(lang, wpm, sps)
+    concrete_re = ES["concrete_re"] if lang == "es" else CONCRETE_RE
+    stopwords = ES["stopwords"] if lang == "es" else STOPWORDS
+    beats = split_beats(raw, wps, units)
     if not beats:
         return None
 
-    rows, clock = [], 0.0
+    rows, elapsed = [], 0.0
     for i, text in enumerate(beats):
-        n = len(words(text))
-        dur = n / wps
+        n = len(words(text, lang))
+        dur = units(text) / wps
         rows.append({
             "n": i + 1,
-            "start": round(clock, 2),
+            "start": round(elapsed, 2),
             "dur": round(dur, 2),
             "words": n,
             "text": text,
-            "concrete": len(CONCRETE_RE.findall(text)),
+            "concrete": len(concrete_re.findall(text)),
             "label": "",
             "flags": [],
         })
-        clock += dur
-    total = clock
+        if lang == "es":
+            rows[-1]["syllables"] = units(text)
+        elapsed += dur
+    total = elapsed
 
     # Label the structural positions a Reel is actually built around.
     for r in rows:
@@ -119,7 +161,7 @@ def analyse(raw, wpm=165, target=None):
     if rows[0]["dur"] > HOOK_WINDOW:
         rows[0]["flags"].append(f"hook runs {rows[0]['dur']:.1f}s, past the {HOOK_WINDOW:.0f}s mark")
         notes.append(f"Beat 1 takes {rows[0]['dur']:.1f}s to say. Cut it to "
-                     f"{int(HOOK_WINDOW * wps)} words or fewer, or the hook lands after "
+                     f"{int(HOOK_WINDOW * wps)} {unit} or fewer, or the hook lands after "
                      "the decision has been made.")
     if rows[0]["concrete"] == 0:
         notes.append("Beat 1 has no number and no name in it. Hooks without something "
@@ -146,9 +188,9 @@ def analyse(raw, wpm=165, target=None):
             run, start = 0, None
 
     # Does the last line hand you back to the first one?
-    first = {w.lower() for w in words(rows[0]["text"]) if w.lower() not in STOPWORDS}
-    last = {w.lower() for w in words(rows[-1]["text"]) if w.lower() not in STOPWORDS}
-    loop = sorted(pretty(w) for w in first & last)
+    first = {w.lower() for w in words(rows[0]["text"], lang) if w.lower() not in stopwords}
+    last = {w.lower() for w in words(rows[-1]["text"], lang) if w.lower() not in stopwords}
+    loop = sorted(pretty(w, "." if lang == "es" else ",") for w in first & last)
     if loop:
         notes.append(f"Loops: the last beat repeats \"{', '.join(loop[:3])}\" from the hook. "
                      "Second watches are free reach.")
@@ -161,23 +203,29 @@ def analyse(raw, wpm=165, target=None):
         if abs(delta) <= target * 0.1:
             notes.append(f"Length is on target ({total:.1f}s against {target}s).")
         elif delta > 0:
-            notes.append(f"{delta:.1f}s over target. Cut about {int(delta * wps)} words.")
+            notes.append(f"{delta:.1f}s over target. Cut about {int(delta * wps)} {unit}.")
         else:
-            notes.append(f"{-delta:.1f}s under target. Either add {int(-delta * wps)} words "
+            notes.append(f"{-delta:.1f}s under target. Either add {int(-delta * wps)} {unit} "
                          "or shoot it short. Short is usually right.")
 
-    return {
+    result = {
         "wpm": wpm, "target": target,
         "total_seconds": round(total, 2),
         "total_words": sum(r["words"] for r in rows),
         "beats": rows,
         "notes": notes,
     }
+    if lang == "es":
+        result.update(wpm=None, lang="es", syllables_per_second=sps,
+                      total_syllables=sum(r["syllables"] for r in rows))
+    return result
 
 
 def render(a, out=sys.stdout):
+    rate = (f"{a['syllables_per_second']} syllables/s" if a.get("lang") == "es"
+            else f"{a['wpm']} wpm")
     head = (f"BEAT SHEET  ·  {a['total_words']} words  ·  ~{a['total_seconds']:.1f}s "
-            f"at {a['wpm']} wpm" + (f"  ·  target {a['target']}s" if a["target"] else ""))
+            f"at {rate}" + (f"  ·  target {a['target']}s" if a["target"] else ""))
     print("\n" + head, file=out)
     print("=" * max(len(head), 72), file=out)
     for r in a["beats"]:
@@ -197,10 +245,14 @@ def main():
     ap.add_argument("--wpm", type=float, default=165, help="speaking rate (default 165)")
     ap.add_argument("--target", type=float, help="target length in seconds")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--lang", default="en", choices=["en", "es"],
+                    help="script language (default en; es times by syllables)")
+    ap.add_argument("--sps", type=float, default=5.2,
+                    help="Spanish speaking rate in syllables per second (default 5.2)")
     args = ap.parse_args()
 
     raw = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
-    a = analyse(raw, wpm=args.wpm, target=args.target)
+    a = analyse(raw, wpm=args.wpm, target=args.target, lang=args.lang, sps=args.sps)
     if not a:
         print("empty script", file=sys.stderr)
         sys.exit(2)
