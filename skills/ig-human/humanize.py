@@ -66,8 +66,13 @@ def es_splice_dash(ch):
 # The connective that follows a dash-turned-comma ("..., also, ...").
 SPLICE = {
     "en": re.compile(r",\s*(also|so|still|basically|in the end)\s*,\s*"),
-    "es": re.compile(r",\s*(además|así que|aun así|básicamente|al final)\s*,\s*"),
 }
+# Spanish uses these connectives between commas all the time and correctly
+# ("Vino, además, con su hermano"), so the full stop is only earned where the
+# comma used to be a spaced dash. That case is fixed in pass_typographic,
+# before the dash becomes a comma and the evidence is gone.
+ES_DASH_SPLICE = re.compile(r"[ \t]+[—―][ \t]+(además|así que|aun así|básicamente|al final)"
+                            r"\s*,\s*", re.IGNORECASE)
 
 # Sentence starts. Spanish needs accented letters and must look through the
 # opening ¿ ¡ (and « ") to the first letter, or "¿por qué" never gets fixed.
@@ -146,6 +151,8 @@ def pass_typographic(text, lex, lang="en"):
             if n:
                 hits.append({"name": f"{ch} {entry['name']} (spaced splice)", "count": n,
                              "to": entry["to"].strip() or "(space)"})
+                text = ES_DASH_SPLICE.sub(
+                    lambda m: ". " + m.group(1)[0].upper() + m.group(1)[1:] + ", ", text)
                 text = splice.sub(", ", text)
             continue
         n = text.count(ch)
@@ -220,8 +227,9 @@ def pass_lexical(text, lex, lang="en"):
     text = re.sub(r"\n{3,}", "\n\n", text)
     # An em dash that became a comma, followed by a sentence connective, leaves
     # a splice ("is important, also, it's proof"). Promote it to a full stop.
-    text = SPLICE[lang].sub(
-        lambda m: ". " + m.group(1)[0].upper() + m.group(1)[1:] + ", ", text)
+    if lang in SPLICE:
+        text = SPLICE[lang].sub(
+            lambda m: ". " + m.group(1)[0].upper() + m.group(1)[1:] + ", ", text)
     return text, hits
 
 

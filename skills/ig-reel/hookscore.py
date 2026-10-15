@@ -99,6 +99,14 @@ IMPERATIVES = {
     "never", "always", "don't", "dont", "do", "put", "run", "check",
 }
 
+# Hashtags and emoji read the same in every language; other profiles reuse these.
+NEUTRAL_DEALBREAKERS = [
+    (HASHTAG_RE,
+     "Hashtag in the hook. Hashtags belong at the bottom of the caption, if anywhere."),
+    (EMOJI_RE,
+     "Emoji in the hook. On-screen text at hook size has room for words or for an emoji, not both."),
+]
+
 DEALBREAKERS = [
     (re.compile(r"(?i)^\s*(?:stop scrolling|don'?t scroll)"),
      "Opens with \"stop scrolling\". Asking for attention proves you have not earned it."),
@@ -106,11 +114,7 @@ DEALBREAKERS = [
      "Video preamble. Delete it and open on the payoff."),
     (re.compile(r"(?i)^\s*(?:hey |hi |what'?s up |welcome )"),
      "Greeting. Nobody came to the feed to be greeted."),
-    (HASHTAG_RE,
-     "Hashtag in the hook. Hashtags belong at the bottom of the caption, if anywhere."),
-    (EMOJI_RE,
-     "Emoji in the hook. On-screen text at hook size has room for words or for an emoji, not both."),
-]
+] + NEUTRAL_DEALBREAKERS
 
 
 # Everything a check needs to know about the language it is reading. English
@@ -146,9 +150,8 @@ def load_profile(lang="en"):
         "stakes": set(d["stakes"]),
         "weak_openers": d["weak_openers"],
         "imperatives": set(d["imperatives"]),
-        # Hashtags and emoji read the same in every language.
         "dealbreakers": [(re.compile(x["regex"]), x["message"]) for x in d["dealbreakers"]]
-                        + DEALBREAKERS[-2:],
+                        + NEUTRAL_DEALBREAKERS,
         "viewer_re": re.compile(d["viewer_re"]),
         "first_person_re": re.compile(d["first_person_re"]),
     }
@@ -274,6 +277,9 @@ CHECKS = ["LENGTH", "SPECIFICITY", "STAKES", "FRONTLOAD", "ADDRESS"]
 
 
 def run(text, lang="en"):
+    """Score one hook. `lang` is a code ("en", "es") or a profile from
+    load_profile(); pass the profile when scoring many hooks so the language
+    file is read once."""
     p = load_profile(lang) if isinstance(lang, str) else lang
     results = {
         "LENGTH": check_length(text, p),

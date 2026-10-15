@@ -65,6 +65,42 @@ class EnglishUnchanged(unittest.TestCase):
         self.assertAlmostEqual(a["total_seconds"], round(20 / 2.75, 2))
 
 
+    # Pinned from the scripts as they were before --lang existed.
+    DRAFT = ("In today's fast-paced world, it's important to delve into the rich tapestry "
+             "of content creation — a true game-changer.\n"
+             "Moreover, leveraging cutting-edge tools can unlock seamless growth. "
+             "It's not just a strategy, it's a mindset.\n")
+
+    def test_humanize_english_output(self):
+        _, out, _ = run("ig-human/humanize.py", "-", stdin=self.DRAFT)
+        self.assertEqual(out, "Right now, it's important to look at the rich mix of content "
+                              "creation, a true big deal.\nAlso, using new tools can get clean "
+                              "growth. It's not just a strategy, it's a mindset.\n")
+
+    def test_detect_english_score(self):
+        draft = self.DRAFT + ("Let's dive in. Here's what I learned: consistency, clarity, "
+                              "and community.\nIn conclusion, embrace the journey and elevate "
+                              "your brand. 🚀\n")
+        out = run_json("ig-human/detect.py", "-", stdin=draft)
+        self.assertEqual((out["human_score"], out["verdict"]), (19.8, "FLAGGED"))
+
+    def test_caption_english_asks(self):
+        caption = ("I lost $18,000 because of one missing contract. Here is the clause.\n\n"
+                   "Comment CLAUSE and I will send it. Save this for your next client.\n\n"
+                   "#freelance #contracts #viral #fyp\n")
+        a = run_json("ig-caption/caption.py", "-", stdin=caption)
+        self.assertEqual(a["asks"], ["comment a keyword", "save this"])
+        self.assertEqual(a["verdict"], "REVIEW")
+
+    def test_swipe_english_ranking(self):
+        tsv = ("account\tfollowers\tmedian\tviews\thook\n"
+               "@a\t48000\t11000\t412000\tnobody tells you your first 30 reels are supposed to flop\n"
+               "@c\t90000\t20000\t160000\tI lost $18,000 because of one missing contract\n")
+        _, out, _ = run("ig-viral/swipe.py", "-", stdin=tsv)
+        self.assertIn("37.5x  hook  87  #3  Nobody Tells You", out)
+        self.assertIn("8.0x  hook  81  #1  Cost Confession", out)
+
+
 class SpanishHooks(unittest.TestCase):
     def setUp(self):
         out = run_json("ig-reel/hookscore.py", "-", "--lang", "es", stdin=ES_HOOKS)
@@ -132,6 +168,11 @@ class SpanishCaption(unittest.TestCase):
         self.assertEqual(a["asks"], ["comment a keyword"])
         self.assertIn("#programación", a["hashtags"])
 
+    def test_comenta_without_a_capitalised_keyword_is_not_an_ask(self):
+        a = run_json("ig-caption/caption.py", "-", "--lang", "es",
+                     stdin="Comenta si te ha pasado.\n\n#python\n")
+        self.assertEqual(a["asks"], [])
+
     def test_spanish_filler_tag_is_flagged(self):
         a = run_json("ig-caption/caption.py", "-", "--lang", "es", stdin=self.CAPTION)
         tags = next(c for c in a["checks"] if c["check"] == "HASHTAGS")
@@ -159,6 +200,16 @@ class SpanishHumanizer(unittest.TestCase):
         for slop in ("En el mundo actual", "cabe destacar", "revolucionaria", "potenciar"):
             self.assertNotIn(slop, out)
         self.assertIn("programación", out)
+
+    def test_parenthetical_connective_is_left_alone(self):
+        text = "Vino, además, con su hermano.\nLo intenté, aun así, otra vez.\n"
+        _, out, _ = run("ig-human/humanize.py", "-", "--lang", "es", stdin=text)
+        self.assertEqual(out, text)
+
+    def test_dash_splice_before_connective_becomes_a_full_stop(self):
+        _, out, _ = run("ig-human/humanize.py", "-", "--lang", "es",
+                        stdin="Es útil — además, es gratis.\n")
+        self.assertEqual(out, "Es útil. Además, es gratis.\n")
 
     def test_human_voice_scores_above_ai_voice(self):
         ai = run_json("ig-human/detect.py", "-", "--lang", "es", stdin=self.AI)

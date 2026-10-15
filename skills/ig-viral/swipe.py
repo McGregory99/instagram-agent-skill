@@ -51,8 +51,9 @@ WORD_RE_BY_LANG = {
 try:                                              # optional: score the hooks too
     sys.path.insert(0, os.path.join(HERE, "..", "ig-reel"))
     from hookscore import run as score_hook       # noqa: E402
+    from hookscore import load_profile            # noqa: E402
 except Exception:                                 # ig-viral copied on its own
-    score_hook = None
+    score_hook = load_profile = None
 try:                                              # older hookscore.py has no lang
     SCORE_TAKES_LANG = score_hook is not None and \
         "lang" in inspect.signature(score_hook).parameters
@@ -116,6 +117,8 @@ def can_score(lang="en"):
 def analyse(rows, formulas, lang="en"):
     used_median = any(r.get("median") for r in rows)
     word_re = WORD_RE_BY_LANG[lang]
+    # Read the language file once, not once per row.
+    profile = load_profile(lang) if lang != "en" and can_score(lang) and load_profile else lang
     for r in rows:
         if lang != "en":                          # é typed as e + combining accent
             r["hook"] = unicodedata.normalize("NFC", r["hook"])
@@ -128,7 +131,7 @@ def analyse(rows, formulas, lang="en"):
             if lang == "en":
                 _, overall, verdict, _ = score_hook(r["hook"])
             else:
-                _, overall, verdict, _ = score_hook(r["hook"], lang=lang)
+                _, overall, verdict, _ = score_hook(r["hook"], lang=profile)
             r["hook_score"], r["hook_verdict"] = round(overall, 1), verdict
         else:
             r["hook_score"], r["hook_verdict"] = None, None

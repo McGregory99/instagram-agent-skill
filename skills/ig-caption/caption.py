@@ -66,7 +66,9 @@ ES = {
     "concrete_re": re.compile(r"[$€]\s?\d|\d\s?€|\b\d[\d,.]*\b"
                               r"|(?<!^)(?<![¿¡])\b[A-ZÁÉÍÓÚÑ][a-záéíóúñü]{2,}\b", re.MULTILINE),
     "asks": [
-        (re.compile(r"(?i)\bcomenta (?:la palabra |\"|«)?[A-Z0-9ÁÉÍÓÚÑ]{2,}\b"), "comment a keyword"),
+        # The keyword is the word written in capitals: "Comenta GUIA" is an ask,
+        # "Comenta si te ha pasado" is just a sentence.
+        (re.compile(r"\b[Cc]omenta (?:la palabra |\"|«)?[A-Z0-9ÁÉÍÓÚÑ]{2,}\b"), "comment a keyword"),
         (re.compile(r"(?i)\b(?:escr[ií]beme|h[aá]blame|m[aá]ndame un (?:dm|md|mensaje))\b"
                     r"|\bpor (?:dm|md|privado)\b"), "DM me"),
         (re.compile(r"(?i)\bgu[aá]rd(?:a|alo|ala|ate)\b"), "save this"),
