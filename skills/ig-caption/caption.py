@@ -19,6 +19,7 @@ Usage
   python3 caption.py caption.txt --keywords "proposal software,client contract"
   pbpaste | python3 caption.py -
   python3 caption.py caption.txt --json
+  python3 caption.py pie.txt --lang es --keywords "python,app web"
 """
 
 import argparse
@@ -57,6 +58,30 @@ FILLER_TAGS = {"#viral", "#fyp", "#explore", "#explorepage", "#foryou", "#foryou
                "#trending", "#instagood", "#love", "#follow", "#like4like", "#reels",
                "#reelsinstagram", "#viralreels", "#instadaily"}
 
+# Spanish captions: the same checks, Spanish asks and Spanish filler tags.
+# Hashtags and proper nouns can carry accents ("#programación", "Álvaro"),
+# which the English patterns would cut in half.
+ES = {
+    "hashtag_re": re.compile(r"(?:^|\s)(#[^\W_][\w]*)"),
+    "concrete_re": re.compile(r"[$€]\s?\d|\d\s?€|\b\d[\d,.]*\b"
+                              r"|(?<!^)(?<![¿¡])\b[A-ZÁÉÍÓÚÑ][a-záéíóúñü]{2,}\b", re.MULTILINE),
+    "asks": [
+        (re.compile(r"(?i)\bcomenta (?:la palabra |\"|«)?[A-Z0-9ÁÉÍÓÚÑ]{2,}\b"), "comment a keyword"),
+        (re.compile(r"(?i)\b(?:escr[ií]beme|h[aá]blame|m[aá]ndame un (?:dm|md|mensaje))\b"
+                    r"|\bpor (?:dm|md|privado)\b"), "DM me"),
+        (re.compile(r"(?i)\bgu[aá]rd(?:a|alo|ala|ate)\b"), "save this"),
+        (re.compile(r"(?i)\bcomp[aá]rt(?:e|elo|ela)\b|\bm[aá]nd(?:aselo|asela|ale) a\b"), "share this"),
+        (re.compile(r"(?i)\bs[ií]gueme\b|\bsigue(?:me)? para\b"), "follow"),
+        (re.compile(r"(?i)\b(?:link|enlace) (?:en|de) (?:la|mi) bio\b"), "link in bio"),
+        (re.compile(r"(?i)\bdesliza\b|\bpasa (?:a la )?(?:siguiente|derecha)\b"), "swipe or tap"),
+        (re.compile(r"(?i)\bd[ií]me\b|\bcu[eé]ntame\b|\bqu[eé] (?:har[ií]as|opinas|piensas)\b"
+                    r"|\bcu[aá]l (?:eliges|prefieres)\b"), "answer a question"),
+    ],
+    "filler_tags": FILLER_TAGS | {"#parati", "#paratii", "#explorar", "#tendencia",
+                                  "#tendencias", "#sigueme", "#megusta", "#seguidores",
+                                  "#viralizar", "#reelsespaña"},
+}
+
 
 def visible_window(text, cut):
     """What the feed shows. Instagram cuts mid-word, so this does too."""
@@ -76,20 +101,24 @@ def render_box(window, truncated, out=sys.stdout, width=52):
     print("  +" + "-" * (width + 2 - len(tail) - 2) + f" {tail} " + "+", file=out)
 
 
-def analyse(text, cut=TRUNCATE, keywords=None):
+def analyse(text, cut=TRUNCATE, keywords=None, lang="en"):
+    hashtag_re = ES["hashtag_re"] if lang == "es" else HASHTAG_RE
+    concrete_re = ES["concrete_re"] if lang == "es" else CONCRETE_RE
+    ask_patterns = ES["asks"] if lang == "es" else ASKS
+    filler_tags = ES["filler_tags"] if lang == "es" else FILLER_TAGS
     text = text.rstrip()
     stripped = text.strip()
     chars = len(stripped)
     lines = [l for l in stripped.split("\n")]
     first_line = lines[0].strip() if lines else ""
-    tags = HASHTAG_RE.findall(stripped)
+    tags = hashtag_re.findall(stripped)
     mentions = MENTION_RE.findall(stripped)
     links = LINK_RE.findall(stripped)
     emoji = EMOJI_RE.findall(stripped)
     window = visible_window(stripped, cut)
     truncated = chars > cut
-    asks = [name for pattern, name in ASKS if pattern.search(stripped)]
-    filler = [t for t in tags if t.lower() in FILLER_TAGS]
+    asks = [name for pattern, name in ask_patterns if pattern.search(stripped)]
+    filler = [t for t in tags if t.lower() in filler_tags]
     keywords = [k.strip() for k in (keywords or []) if k.strip()]
 
     checks = []
@@ -113,9 +142,9 @@ def analyse(text, cut=TRUNCATE, keywords=None):
     else:
         add("FIRST LINE", "PASS", f"{len(first_line)} characters, lands whole")
 
-    add("HOOK IS CONCRETE", "PASS" if CONCRETE_RE.search(window) else "WARN",
-        f"{len(CONCRETE_RE.findall(window))} number(s) or name(s) in the visible window"
-        + ("" if CONCRETE_RE.search(window) else " - nothing checkable before the tap"))
+    add("HOOK IS CONCRETE", "PASS" if concrete_re.search(window) else "WARN",
+        f"{len(concrete_re.findall(window))} number(s) or name(s) in the visible window"
+        + ("" if concrete_re.search(window) else " - nothing checkable before the tap"))
 
     if len(tags) > HASHTAG_LIMIT:
         add("HASHTAGS", "FAIL", f"{len(tags)} tags, over Instagram's cap of {HASHTAG_LIMIT}. "
@@ -199,10 +228,12 @@ def main():
                     help=f"characters shown before '... more' (default {TRUNCATE})")
     ap.add_argument("--keywords", default="", help="comma-separated terms you want to be found for")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--lang", default="en", choices=["en", "es"],
+                    help="caption language (default en; es checks Spanish asks and tags)")
     args = ap.parse_args()
 
     raw = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
-    a = analyse(raw, cut=args.truncate, keywords=args.keywords.split(","))
+    a = analyse(raw, cut=args.truncate, keywords=args.keywords.split(","), lang=args.lang)
     if args.json:
         print(json.dumps(a, indent=2, ensure_ascii=False))
     else:
